@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:test3/test3.dart' as test3;
 import 'dart:convert' as convert;
 import 'package:http/http.dart' as http;
@@ -9,9 +10,8 @@ import 'package:sqlite3/sqlite3.dart';
 // Example Usage
 Map<String, dynamic> map = jsonDecode(<myJSONString>);
 var myRootNode = Root.fromJson(map);
-
-Getting JSON from API, deserialise it and put to DB, put to file, make JSON and send in POST on server
 */
+var jsonText = '';
 class GenderOfName {
   int? count;
   String? gender;
@@ -37,11 +37,11 @@ class GenderOfName {
   }
 }
 
-void getData() async{
+void getData(String? name) async{
   final url = Uri.https(
     'api.genderize.io',
     '/',
-    {'name': 'Alex'},
+    {'name': '${name}'},
   );
 
   final response = await http.get(url);
@@ -68,7 +68,6 @@ void createDB(GenderOfName inputToDBData) {
     );
   ''');
 
-  // Prepare a statement to run it multiple times:
   db.execute(""" 
   INSERT INTO NamesInfo (count, gender, name, probability) 
     VALUES(
@@ -78,37 +77,36 @@ void createDB(GenderOfName inputToDBData) {
       ${inputToDBData.probability}
     );
   """);
+  db.dispose();
 
+   final ResultSet resultSet =
+   db.select('SELECT * FROM NamesInfo WHERE name LIKE ?', ['The %']);
 
-  // Dispose a statement when you don't need it anymore to clean up resources.
-  //stmt.dispose();
+  for (final Row row in resultSet) {
+    print('Artist[id: ${row['id']}, name: ${row['name']}]');
+   }
+}
 
-  // You can run select statements with PreparedStatement.select, or directly
-  // on the database:
-  // final ResultSet resultSet =
-  // db.select('SELECT * FROM artists WHERE name LIKE ?', ['The %']);
+void sendFromDB() async {
+  var db = sqlite3.open('database.db');
+  final ResultSet resultSet =
+  db.select('SELECT * FROM NamesInfo');
+  File file = File("jsonFromDB.txt");
+  await file.create();
 
-  // You can iterate on the result set in multiple ways to retrieve Row objects
-  // one by one.
-  // for (final Row row in resultSet) {
-  //   print('Artist[id: ${row['id']}, name: ${row['name']}]');
-  // }
-
-  // Register a custom function we can invoke from sql:
-  // db.createFunction(
-  //   functionName: 'dart_version',
-  //   argumentCount: const AllowedArgumentCount(0),
-  //   function: (args) => Platform.version,
-  // );
-  // print(db.select('SELECT dart_version()'));
-
-  // Don't forget to dispose the database to avoid memory leaks
+  for (final Row row in resultSet) {
+    jsonText += jsonEncode(row.toTableColumnMap());
+  }
+  file.writeAsString(jsonText);
+  print('file done');
   db.dispose();
 }
 
 void main(List<String> arguments) {
   //print('Hello world: ${test3.calculate()}!');
-  getData();
+  //String? enterYourName = 'Alex'; //stdin.readLineSync();
+  //getData(enterYourName);
+  sendFromDB();
   //createDB();
 
 }
